@@ -476,6 +476,166 @@ monarch-mcp-server/
 - Session tokens are stored in the system keyring
 - Authentication handled in secure terminal environment
 
+## 🌐 Remote Access (HTTP)
+
+The server can run over streamable HTTP with bearer-token authentication for remote deployment scenarios. The default stdio mode remains unchanged and is recommended for local use with Claude Desktop or Claude Code.
+
+### What It Is
+
+Run `monarch-mcp-server serve` to expose the MCP server over HTTP instead of stdio. All requests require a bearer token for authentication. This mode is designed for:
+
+- Running the server on a remote machine (VPS, home server, cloud instance)
+- Accessing your Monarch data from multiple devices
+- Deploying behind a reverse proxy with TLS
+
+### Generate an Authentication Token
+
+Create a secure random token:
+
+```bash
+openssl rand -base64 33
+```
+
+Store it securely and provide it to the server via environment variables.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MONARCH_MCP_AUTH_TOKEN` | Bearer token for authentication | (required) |
+| `MONARCH_MCP_AUTH_TOKEN_FILE` | Path to file containing the token (preferred; env vars show in `docker inspect`) | — |
+| `MONARCH_MCP_HOST` | Bind address | `127.0.0.1` |
+| `MONARCH_MCP_PORT` | Bind port | `8000` |
+| `MONARCH_MCP_ALLOWED_HOSTS` | Comma-separated list of allowed Host headers (e.g., `monarch.example.com`) | — |
+| `MONARCH_MCP_PUBLIC_URL` | Public-facing URL for the server (used in responses) | `http://{host}:{port}` |
+
+**Note:** Tokens must be at least 32 characters. The server enforces this on startup.
+
+### Docker Quick Start
+
+1. **Create a `.env` file** in the repository root:
+
+   ```bash
+   MONARCH_MCP_AUTH_TOKEN=<output-of-openssl-rand-base64-33>
+   ```
+
+2. **Start the server**:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   The server binds to `127.0.0.1:8000` by default. Never expose this port directly to the internet without TLS.
+
+3. **Verify it's running**:
+
+   ```bash
+   curl http://127.0.0.1:8000/healthz
+   ```
+
+### Monarch Login Inside the Container
+
+The MCP login tools (`monarch_login`, `monarch_login_with_token`) are disabled in serve mode by design. Authenticate using the standalone `login_setup.py` script inside the container:
+
+```bash
+docker compose run --rm -it --entrypoint python monarch-mcp login_setup.py
+```
+
+**Recommended:** Use cookie-paste (option 1 in the script). Password login from VPS or datacenter IPs is frequently CAPTCHA-blocked by Cloudflare. Cookie sessions track your browser login lifetime and avoid this issue entirely.
+
+Sessions persist in the `monarch-data` volume, where the server reads them.
+
+### Cloudflare Tunnel (Recommended)
+
+Cloudflare Tunnel provides zero-configuration TLS and DDOS protection without opening firewall ports.
+
+1. **Create a tunnel** in the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/):
+   - Navigate to **Networks > Tunnels**
+   - Create a new tunnel and note the tunnel token
+   - Configure a public hostname (e.g., `monarch.example.com`) pointing to `http://monarch-mcp:8000`
+
+2. **Add the tunnel token to `.env`**:
+
+   ```bash
+   TUNNEL_TOKEN=<your-cloudflare-tunnel-token>
+   ```
+
+3. **Update `.env` with your public hostname**:
+
+   ```bash
+   MONARCH_MCP_ALLOWED_HOSTS=monarch.example.com
+   MONARCH_MCP_PUBLIC_URL=https://monarch.example.com
+   ```
+
+4. **Start the tunnel**:
+
+   ```bash
+   docker compose --profile tunnel up -d
+   ```
+
+5. **Verify**:
+
+   ```bash
+   curl https://monarch.example.com/healthz
+   ```
+
+### Generic Reverse Proxy
+
+If not using Cloudflare Tunnel, deploy a reverse proxy with TLS. Example with [Caddy](https://caddyserver.com/):
+
+```
+monarch.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+**Warning:** NEVER expose port 8000 directly to the internet without TLS and authentication. The bearer token is transmitted in HTTP headers and must be protected by transport encryption.
+
+### Connect Claude Code
+
+Add the server to Claude Code using the `claude mcp add` command:
+
+```bash
+claude mcp add --transport http monarch https://monarch.example.com/mcp \
+    --header "Authorization: Bearer <your-token>"
+```
+
+Replace `https://monarch.example.com` with your actual server URL and `<your-token>` with the token from your `.env` file.
+
+### Connect Claude Desktop
+
+Claude Desktop can connect via the `mcp-remote` proxy:
+
+```json
+{
+  "mcpServers": {
+    "monarch": {
+      "command": "npx",
+      "args": [
+        "mcp-remote", "https://monarch.example.com/mcp",
+        "--header", "Authorization: Bearer ${MONARCH_TOKEN}"
+      ],
+      "env": { "MONARCH_TOKEN": "<your-token>" }
+    }
+  }
+}
+```
+
+Add this to your Claude Desktop configuration:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Note:** The native paste-URL connector UI in Claude Desktop requires OAuth support, which is planned for a future phase.
+
+### Security Notes
+
+- **Full Account Access:** The bearer token grants complete access to your Monarch account. Treat it like a password.
+- **Token Rotation:** To rotate the token, generate a new one, update your `.env` file, and restart the server (`docker compose restart monarch-mcp`).
+- **Unauthenticated Routes:** `/healthz` is the only route that does not require authentication. All MCP endpoints require a valid bearer token.
+- **Login Tools Disabled:** The `monarch_login` and `monarch_login_with_token` MCP tools are disabled in serve mode. Use the standalone `login_setup.py` script inside the container (see above).
+- **Transport Security:** Always use TLS (HTTPS) when exposing the server over a network. Unencrypted HTTP exposes the bearer token to interception.
+
 ### Recommended: require approval for mutating tools
 
 Several tools mutate your Monarch ledger (`create_transaction`, `update_transaction`, `delete_transaction`, `bulk_categorize_transactions`, `upload_account_balance_history`, `set_transaction_tags`, `create_transaction_rule`, `update_transaction_rule`, `delete_transaction_rule`, `split_transaction`, `set_budget_amount`, `update_merchant`, `review_recurring_stream`).
