@@ -60,7 +60,11 @@ def server():
         yield base
     finally:
         proc.terminate()
-        proc.wait(timeout=10)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
 
 def test_healthz_is_unauthenticated_and_bare(server):

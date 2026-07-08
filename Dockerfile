@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir .
 
 # Non-root user; HOME=/data puts the file-fallback session store
 # (~/.monarch-mcp-server/token) on the persistent volume.
-RUN useradd --create-home --uid 1000 monarch \
+RUN useradd --no-create-home --uid 1000 monarch \
     && mkdir -p /data \
     && chown monarch:monarch /data
 ENV HOME=/data \
