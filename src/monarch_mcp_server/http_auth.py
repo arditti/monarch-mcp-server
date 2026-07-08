@@ -1,6 +1,7 @@
 """Static bearer-token verification for serve mode."""
 
 import asyncio
+import hashlib
 import hmac
 import logging
 import time
@@ -21,15 +22,19 @@ class StaticTokenVerifier:
     Failed attempts are throttled globally (not per-IP): behind a tunnel all
     traffic shares one peer address, and trusting X-Forwarded-For would let a
     direct-connecting client dodge the limit by spoofing the header.
+
+    Token comparison uses SHA256 digests to avoid timing/length leaks: both
+    inputs to hmac.compare_digest are always 32 bytes (fixed-length).
     """
 
     def __init__(self, expected_token: str, max_failures_per_minute: int = 10):
-        self._expected = expected_token.encode()
+        self._expected_digest = hashlib.sha256(expected_token.encode()).digest()
         self._max_failures = max_failures_per_minute
         self._failures: Deque[float] = deque()
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
-        if hmac.compare_digest(token.encode(), self._expected):
+        candidate = hashlib.sha256(token.encode()).digest()
+        if hmac.compare_digest(candidate, self._expected_digest):
             return AccessToken(
                 token=token, client_id="static-token-client", scopes=[]
             )
