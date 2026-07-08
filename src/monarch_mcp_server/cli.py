@@ -35,7 +35,7 @@ def main(
         os.environ["MONARCH_MCP_MODE"] = "serve"
         if parsed.host:
             os.environ["MONARCH_MCP_HOST"] = parsed.host
-        if parsed.port:
+        if parsed.port is not None:
             os.environ["MONARCH_MCP_PORT"] = str(parsed.port)
 
         app = _app_loader()
