@@ -6,13 +6,13 @@ import os
 from mcp.server.fastmcp import Context
 
 from monarch_mcp_server import auth
+import monarch_mcp_server.app as app_module
 from monarch_mcp_server.app import mcp
 from monarch_mcp_server.secure_session import secure_session
 
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool()
 async def setup_authentication() -> str:
     """Get instructions for setting up secure authentication with Monarch Money."""
     return """🔐 Monarch Money - Authentication Options
@@ -35,7 +35,6 @@ Call 'monarch_logout' to clear the stored session.
 ✅ Token stored securely in system keyring"""
 
 
-@mcp.tool()
 async def monarch_login(ctx: Context) -> str:
     """Sign in to Monarch Money.
 
@@ -46,7 +45,6 @@ async def monarch_login(ctx: Context) -> str:
     return await auth.login_interactive(ctx)
 
 
-@mcp.tool()
 async def monarch_login_with_token(ctx: Context) -> str:
     """Sign in to Monarch Money using a browser-copied session token.
 
@@ -56,7 +54,6 @@ async def monarch_login_with_token(ctx: Context) -> str:
     return await auth.login_with_token_interactive(ctx)
 
 
-@mcp.tool()
 async def monarch_logout() -> str:
     """Clear the stored Monarch Money session from the system keyring."""
     return await auth.logout()
@@ -85,7 +82,6 @@ async def check_auth_status() -> str:
         return f"Error checking auth status: {str(e)}"
 
 
-@mcp.tool()
 async def debug_session_loading() -> str:
     """Debug keyring session loading issues."""
     try:
@@ -96,3 +92,14 @@ async def debug_session_loading() -> str:
     except Exception as e:
         logger.exception("Keyring access failed")
         return f"❌ Keyring access failed: {type(e).__name__}: {e}"
+
+
+# Login tools accept credentials via the MCP channel, which is appropriate on
+# a local stdio transport but not over a remote HTTP connection. In serve
+# mode, sessions are installed on the host with login_setup.py instead.
+if app_module.MODE == "stdio":
+    mcp.tool()(setup_authentication)
+    mcp.tool()(monarch_login)
+    mcp.tool()(monarch_login_with_token)
+    mcp.tool()(monarch_logout)
+    mcp.tool()(debug_session_loading)
