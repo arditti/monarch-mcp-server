@@ -61,3 +61,39 @@ def test_serve_mode_without_token_fails_fast():
     )
     assert out.returncode != 0
     assert "MONARCH_MCP_AUTH_TOKEN" in out.stderr
+
+
+def test_cli_serve_subcommand_sets_mode_and_flags():
+    from monarch_mcp_server import cli
+
+    captured = {}
+
+    def fake_run(transport=None):
+        captured["transport"] = transport
+        captured["mode"] = os.environ.get("MONARCH_MCP_MODE")
+        captured["host"] = os.environ.get("MONARCH_MCP_HOST")
+        captured["port"] = os.environ.get("MONARCH_MCP_PORT")
+
+    def fake_import():
+        class FakeApp:
+            class mcp:
+                run = staticmethod(fake_run)
+        return FakeApp
+
+    old_env = {k: os.environ.get(k) for k in
+               ("MONARCH_MCP_MODE", "MONARCH_MCP_HOST", "MONARCH_MCP_PORT")}
+    try:
+        cli.main(["serve", "--host", "0.0.0.0", "--port", "9100"],
+                 _app_loader=fake_import)
+        assert captured == {
+            "transport": "streamable-http",
+            "mode": "serve",
+            "host": "0.0.0.0",
+            "port": "9100",
+        }
+    finally:
+        for k, v in old_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
