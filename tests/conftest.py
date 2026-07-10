@@ -8,6 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 mm_mock = MagicMock()
 mm_mock.MonarchMoney = MagicMock
 mm_mock.RequireMFAException = Exception
+# Must be a real exception class: login_password has `except
+# CaptchaRequiredException` clauses, and a MagicMock there is a TypeError.
+mm_mock.CaptchaRequiredException = type(
+    "CaptchaRequiredException", (Exception,), {}
+)
 sys.modules.setdefault("monarchmoney", mm_mock)
 sys.modules.setdefault("monarchmoney.monarchmoney", MagicMock())
 

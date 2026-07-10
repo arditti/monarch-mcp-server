@@ -57,6 +57,22 @@ def main(
         login_cookies_main()
         return
 
+    if args and args[0] == "login-password":
+        parser = argparse.ArgumentParser(
+            prog="monarch-mcp-server login-password",
+            description=(
+                "Save a Monarch session from newline-separated credentials "
+                "on stdin: email, password, optional one-time code "
+                "(non-interactive login_setup.py option 2)."
+            ),
+        )
+        parser.parse_args(args[1:])
+
+        from monarch_mcp_server.login_password import main as login_password_main
+
+        login_password_main()
+        return
+
     # Default: stdio, exactly as before.
     app = _app_loader()
     app.main()
