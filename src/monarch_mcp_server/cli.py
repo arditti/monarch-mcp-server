@@ -42,6 +42,21 @@ def main(
         app.mcp.run(transport="streamable-http")
         return
 
+    if args and args[0] == "login-cookies":
+        parser = argparse.ArgumentParser(
+            prog="monarch-mcp-server login-cookies",
+            description=(
+                "Save a Monarch session from a browser Cookie header read "
+                "on stdin (non-interactive login_setup.py option 1)."
+            ),
+        )
+        parser.parse_args(args[1:])
+
+        from monarch_mcp_server.login_cookies import main as login_cookies_main
+
+        login_cookies_main()
+        return
+
     # Default: stdio, exactly as before.
     app = _app_loader()
     app.main()

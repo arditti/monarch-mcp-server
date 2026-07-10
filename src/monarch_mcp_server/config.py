@@ -40,14 +40,21 @@ class ServeConfig:
 
         token = ""
         token_file = os.environ.get("MONARCH_MCP_AUTH_TOKEN_FILE")
-        if token_file:
+        if token_file and Path(token_file).is_file():
             token = Path(token_file).read_text().strip()
         if not token:
             token = os.environ.get("MONARCH_MCP_AUTH_TOKEN", "").strip()
         if not token:
+            # A set-but-absent token file falls through here (rather than
+            # crashing on read) so the operator can point at a file that an
+            # init step creates later, and still get a clear error meanwhile.
+            hint = (
+                f" (MONARCH_MCP_AUTH_TOKEN_FILE={token_file} is missing or"
+                " empty)" if token_file else ""
+            )
             raise ValueError(
                 "Serve mode requires MONARCH_MCP_AUTH_TOKEN or "
-                "MONARCH_MCP_AUTH_TOKEN_FILE. Generate one with: "
+                f"MONARCH_MCP_AUTH_TOKEN_FILE{hint}. Generate one with: "
                 "openssl rand -base64 33"
             )
         if len(token) < MIN_TOKEN_LENGTH:

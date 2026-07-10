@@ -64,6 +64,24 @@ class TestServeConfig:
         cfg = ServeConfig.from_env()
         assert cfg.auth_token == "f" * MIN_TOKEN_LENGTH  # stripped, file wins
 
+    def test_missing_token_file_falls_back_to_env(self, monkeypatch, tmp_path):
+        self._clear(monkeypatch)
+        monkeypatch.setenv(
+            "MONARCH_MCP_AUTH_TOKEN_FILE", str(tmp_path / "not-there")
+        )
+        monkeypatch.setenv("MONARCH_MCP_AUTH_TOKEN", VALID_TOKEN)
+        assert ServeConfig.from_env().auth_token == VALID_TOKEN
+
+    def test_missing_token_file_and_no_env_raises_with_path_hint(
+        self, monkeypatch, tmp_path
+    ):
+        self._clear(monkeypatch)
+        monkeypatch.setenv(
+            "MONARCH_MCP_AUTH_TOKEN_FILE", str(tmp_path / "not-there")
+        )
+        with pytest.raises(ValueError, match="not-there"):
+            ServeConfig.from_env()
+
     def test_custom_host_port_public_url_and_allowed_hosts(self, monkeypatch):
         self._clear(monkeypatch)
         monkeypatch.setenv("MONARCH_MCP_AUTH_TOKEN", VALID_TOKEN)
