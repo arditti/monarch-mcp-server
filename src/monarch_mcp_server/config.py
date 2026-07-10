@@ -32,6 +32,10 @@ class ServeConfig:
     auth_token: str
     issuer_url: str
     allowed_hosts: List[str] = field(default_factory=list)
+    # Set only when MONARCH_MCP_AUTH_TOKEN_FILE was used, so callers that
+    # want the *current* token (e.g. the /setup page, after a same-container
+    # rotation) can re-read the file instead of trusting this frozen value.
+    auth_token_file: str = ""
 
     @classmethod
     def from_env(cls) -> "ServeConfig":
@@ -76,4 +80,5 @@ class ServeConfig:
             auth_token=token,
             issuer_url=issuer_url,
             allowed_hosts=allowed_hosts,
+            auth_token_file=token_file or "",
         )

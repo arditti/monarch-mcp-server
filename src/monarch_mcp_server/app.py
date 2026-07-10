@@ -24,6 +24,9 @@ logging.getLogger("gql.transport.aiohttp").setLevel(logging.WARNING)
 
 MODE = get_mode()
 
+# Populated by _build_mcp() in serve mode; read by the /setup route below.
+_serve_cfg: ServeConfig | None = None
+
 
 def _build_mcp() -> FastMCP:
     if MODE != "serve":
@@ -34,7 +37,9 @@ def _build_mcp() -> FastMCP:
 
     from monarch_mcp_server.http_auth import StaticTokenVerifier
 
+    global _serve_cfg
     cfg = ServeConfig.from_env()
+    _serve_cfg = cfg
     return FastMCP(
         "Monarch Money MCP Server",
         host=cfg.host,
@@ -60,12 +65,23 @@ mcp = _build_mcp()
 
 if MODE == "serve":
     from starlette.requests import Request
-    from starlette.responses import PlainTextResponse
+    from starlette.responses import HTMLResponse, PlainTextResponse
+
+    from monarch_mcp_server.setup_page import render_setup_page
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(_: Request) -> PlainTextResponse:
         # Liveness only — no version or config details.
         return PlainTextResponse("ok")
+
+    @mcp.custom_route("/setup", methods=["GET"])
+    async def setup(_: Request) -> HTMLResponse:
+        # No auth of our own here — this path must sit behind Cloudflare
+        # Access at the edge (see docs/SECRETS.md in home-infra). Custom
+        # routes bypass the MCP transport's bearer-token check entirely,
+        # same as /healthz.
+        assert _serve_cfg is not None
+        return HTMLResponse(render_setup_page(_serve_cfg))
 
 
 # Import tools package to trigger @mcp.tool() registration
