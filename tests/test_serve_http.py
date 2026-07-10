@@ -115,3 +115,32 @@ def test_mcp_endpoint_unaffected_by_root_route(server):
         headers=MCP_HEADERS | {"Authorization": f"Bearer {TOKEN}"},
     )
     assert resp.status_code == 200
+
+
+def test_mcp_with_valid_token_as_query_param_initializes(server):
+    # Custom MCP connectors (Claude Desktop/mobile's "Remote MCP server
+    # URL" field) can't set a header — this is the path they use instead.
+    resp = httpx.post(
+        f"{server}/mcp?token={TOKEN}", json=INIT_BODY, headers=MCP_HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["result"]["serverInfo"]["name"] == "Monarch Money MCP Server"
+
+
+def test_mcp_with_wrong_token_as_query_param_is_401(server):
+    resp = httpx.post(
+        f"{server}/mcp?token=" + "w" * 40, json=INIT_BODY, headers=MCP_HEADERS,
+    )
+    assert resp.status_code == 401
+
+
+def test_mcp_header_wins_over_query_token_when_both_present(server):
+    # A real Authorization header must never be silently overridden by a
+    # query param — even a WRONG header should still fail, not fall back
+    # to a valid query token.
+    resp = httpx.post(
+        f"{server}/mcp?token={TOKEN}", json=INIT_BODY,
+        headers=MCP_HEADERS | {"Authorization": "Bearer " + "w" * 40},
+    )
+    assert resp.status_code == 401

@@ -17,9 +17,30 @@ def _load_app():
     return app
 
 
+def _default_serve_http(app) -> None:
+    """Serve the streamable-HTTP ASGI app ourselves (instead of
+    ``app.mcp.run(transport=...)``) so we can wrap it with
+    QueryTokenAuthMiddleware — FastMCP's own run method has no hook for
+    that. The `mcp` package itself is untouched; this only wraps the ASGI
+    app it hands back."""
+    import uvicorn
+
+    from monarch_mcp_server.query_token_auth import QueryTokenAuthMiddleware
+
+    asgi_app = QueryTokenAuthMiddleware(app.mcp.streamable_http_app())
+    settings = app.mcp.settings
+    uvicorn.run(
+        asgi_app,
+        host=settings.host,
+        port=settings.port,
+        log_level=settings.log_level.lower(),
+    )
+
+
 def main(
     argv: Optional[List[str]] = None,
     _app_loader: Callable = _load_app,
+    _serve_http: Callable = _default_serve_http,
 ) -> None:
     args = sys.argv[1:] if argv is None else argv
 
@@ -39,7 +60,7 @@ def main(
             os.environ["MONARCH_MCP_PORT"] = str(parsed.port)
 
         app = _app_loader()
-        app.mcp.run(transport="streamable-http")
+        _serve_http(app)
         return
 
     if args and args[0] == "login-cookies":

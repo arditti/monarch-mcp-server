@@ -55,23 +55,32 @@ def render_setup_page(cfg: ServeConfig) -> str:
         indent=2,
     )
 
+    connector_url = f"{mcp_url}?token={token}"
+
     e = html.escape
     blocks = [
-        ("Claude Code", claude_code_cmd),
-        ("Claude Desktop (claude_desktop_config.json)", desktop_json),
-        ("MCP URL", mcp_url),
-        ("Bearer token", token),
+        (
+            'Claude Desktop / Mobile — "Add custom connector" URL field',
+            connector_url,
+            "Paste as-is into the “Remote MCP server URL” field. "
+            "Leave OAuth Client ID/Secret blank — not needed.",
+        ),
+        ("Claude Code", claude_code_cmd, None),
+        ("Claude Desktop (claude_desktop_config.json)", desktop_json, None),
+        ("MCP URL", mcp_url, None),
+        ("Bearer token", token, None),
     ]
     sections = "\n".join(
         f"""
         <section>
           <h2>{e(title)}</h2>
+          {f'<p class="hint">{e(hint)}</p>' if hint else ""}
           <div class="block">
             <pre id="v{i}">{e(value)}</pre>
             <button onclick="copyBlock('v{i}', this)">Copy</button>
           </div>
         </section>"""
-        for i, (title, value) in enumerate(blocks)
+        for i, (title, value, hint) in enumerate(blocks)
     )
 
     return f"""<!doctype html>
@@ -103,6 +112,7 @@ def render_setup_page(cfg: ServeConfig) -> str:
     padding: 1rem 1.25rem; margin-bottom: 1rem;
   }}
   h2 {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.65; margin: 0 0 0.6rem; }}
+  p.hint {{ font-size: 0.8rem; opacity: 0.65; margin: -0.3rem 0 0.6rem; }}
   .block {{ display: flex; align-items: flex-start; gap: 0.6rem; }}
   pre {{
     flex: 1; min-width: 0; overflow-x: auto; background: var(--mono-bg); border-radius: 8px;

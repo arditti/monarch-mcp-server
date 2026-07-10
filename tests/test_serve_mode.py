@@ -68,25 +68,21 @@ def test_cli_serve_subcommand_sets_mode_and_flags():
 
     captured = {}
 
-    def fake_run(transport=None):
-        captured["transport"] = transport
+    def fake_serve_http(app):
+        captured["app"] = app
         captured["mode"] = os.environ.get("MONARCH_MCP_MODE")
         captured["host"] = os.environ.get("MONARCH_MCP_HOST")
         captured["port"] = os.environ.get("MONARCH_MCP_PORT")
 
-    def fake_import():
-        class FakeApp:
-            class mcp:
-                run = staticmethod(fake_run)
-        return FakeApp
+    sentinel_app = object()
 
     old_env = {k: os.environ.get(k) for k in
                ("MONARCH_MCP_MODE", "MONARCH_MCP_HOST", "MONARCH_MCP_PORT")}
     try:
         cli.main(["serve", "--host", "0.0.0.0", "--port", "9100"],
-                 _app_loader=fake_import)
+                 _app_loader=lambda: sentinel_app, _serve_http=fake_serve_http)
         assert captured == {
-            "transport": "streamable-http",
+            "app": sentinel_app,
             "mode": "serve",
             "host": "0.0.0.0",
             "port": "9100",
@@ -97,3 +93,41 @@ def test_cli_serve_subcommand_sets_mode_and_flags():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
+
+
+def test_default_serve_http_wraps_app_with_query_token_middleware(monkeypatch):
+    from monarch_mcp_server import cli
+    from monarch_mcp_server.query_token_auth import QueryTokenAuthMiddleware
+
+    captured = {}
+
+    def fake_uvicorn_run(asgi_app, *, host, port, log_level):
+        captured["asgi_app"] = asgi_app
+        captured["host"] = host
+        captured["port"] = port
+        captured["log_level"] = log_level
+
+    monkeypatch.setattr("uvicorn.run", fake_uvicorn_run)
+
+    class FakeSettings:
+        host = "0.0.0.0"
+        port = 9100
+        log_level = "INFO"
+
+    class FakeMcp:
+        settings = FakeSettings()
+
+        @staticmethod
+        def streamable_http_app():
+            return "the-real-asgi-app"
+
+    class FakeApp:
+        mcp = FakeMcp()
+
+    cli._default_serve_http(FakeApp())
+
+    assert isinstance(captured["asgi_app"], QueryTokenAuthMiddleware)
+    assert captured["asgi_app"].app == "the-real-asgi-app"
+    assert captured["host"] == "0.0.0.0"
+    assert captured["port"] == 9100
+    assert captured["log_level"] == "info"
