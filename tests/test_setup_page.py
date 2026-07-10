@@ -1,4 +1,4 @@
-"""Tests for the /setup client-config page."""
+"""Tests for the root ("/") client-config page."""
 
 from monarch_mcp_server.config import ServeConfig
 from monarch_mcp_server.setup_page import current_auth_token, render_setup_page

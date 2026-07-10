@@ -74,12 +74,16 @@ if MODE == "serve":
         # Liveness only — no version or config details.
         return PlainTextResponse("ok")
 
-    @mcp.custom_route("/setup", methods=["GET"])
+    @mcp.custom_route("/", methods=["GET"])
     async def setup(_: Request) -> HTMLResponse:
         # No auth of our own here — this path must sit behind Cloudflare
-        # Access at the edge (see docs/SECRETS.md in home-infra). Custom
-        # routes bypass the MCP transport's bearer-token check entirely,
-        # same as /healthz.
+        # Access at the edge (see docs/SECRETS.md in home-infra: root is
+        # gated by a whole-hostname Access Application, with narrow bypass
+        # Applications carving out /mcp and /healthz — a bare-hostname
+        # Access Application protects the whole domain by default, so those
+        # two need their own explicit exception, same pattern mindbody-mcp
+        # already uses). Custom routes bypass the MCP transport's
+        # bearer-token check entirely, same as /healthz.
         assert _serve_cfg is not None
         return HTMLResponse(render_setup_page(_serve_cfg))
 

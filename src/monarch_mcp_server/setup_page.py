@@ -1,12 +1,13 @@
 """Self-service copy-paste client setup page (serve mode only).
 
-Rendered at /setup, behind Cloudflare Access at the edge (this module adds
-no auth of its own — see docs/SECRETS.md in home-infra for the Access
-Application that gates this path to a specific Google account). Reads the
-bearer token live off disk on every request when the operator uses
-MONARCH_MCP_AUTH_TOKEN_FILE, so a same-container token rotation (delete the
-file, let an init step regenerate it) shows up here without a page reload
-needing anything more than a fresh network request.
+Rendered at root "/", behind Cloudflare Access at the edge (this module
+adds no auth of its own — see docs/SECRETS.md in home-infra for the
+whole-hostname Access Application that gates it to a specific Google
+account, with narrow bypass Applications carving out /mcp and /healthz).
+Reads the bearer token live off disk on every request when the operator
+uses MONARCH_MCP_AUTH_TOKEN_FILE, so a same-container token rotation
+(delete the file, let an init step regenerate it) shows up here without a
+page reload needing anything more than a fresh network request.
 """
 
 import html

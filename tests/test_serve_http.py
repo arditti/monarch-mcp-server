@@ -95,3 +95,23 @@ def test_mcp_with_valid_token_initializes(server):
     assert resp.status_code == 200
     body = resp.json()
     assert body["result"]["serverInfo"]["name"] == "Monarch Money MCP Server"
+
+
+def test_root_serves_setup_page_unauthenticated(server):
+    # No auth of its own (relies on Cloudflare Access at the edge in
+    # production) — but must not collide with the MCP transport's own
+    # root-adjacent routing, and must not require the bearer token.
+    resp = httpx.get(f"{server}/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert TOKEN in resp.text
+    assert "claude mcp add" in resp.text
+
+
+def test_mcp_endpoint_unaffected_by_root_route(server):
+    # Guards against a regression where adding "/" ever shadows "/mcp".
+    resp = httpx.post(
+        f"{server}/mcp", json=INIT_BODY,
+        headers=MCP_HEADERS | {"Authorization": f"Bearer {TOKEN}"},
+    )
+    assert resp.status_code == 200
