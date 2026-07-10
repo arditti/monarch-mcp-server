@@ -71,38 +71,44 @@ class TestLoginPasswordRun:
         assert "one-time code" in capsys.readouterr().err
 
     @pytest.mark.asyncio
-    async def test_email_otp_retry_with_code_succeeds(
-        self, monkeypatch, saved, capsys
+    async def test_supplied_code_is_applied_on_first_call(
+        self, monkeypatch, saved
     ):
+        # The provided code must ride the FIRST request (email_otp) so no
+        # fresh OTP email is triggered — a no-code attempt first would
+        # invalidate the operator's code.
         _stdin(monkeypatch, "user@example.com\nhunter2secret\n123456\n")
         client = _FakeClient({"accounts": []})
         calls = []
 
         async def fake_login(email, password, *, email_otp=None, mfa_code=None):
-            calls.append(email_otp)
-            if email_otp is None:
-                raise EmailOtpRequiredException()
+            calls.append((email_otp, mfa_code))
             assert email_otp == "123456"
             return client
 
         monkeypatch.setattr(login_password, "login_with_current_auth", fake_login)
         assert await login_password._run() == 0
-        assert calls == [None, "123456"]
+        assert calls == [("123456", None)]  # exactly one call, no no-code probe
         assert saved == [client]
 
     @pytest.mark.asyncio
-    async def test_mfa_retry_with_code_succeeds(self, monkeypatch, saved):
+    async def test_supplied_code_falls_back_to_mfa_slot(self, monkeypatch, saved):
+        # If Monarch rejects the code as an email OTP with an MFA-required
+        # signal, retry it as a TOTP code — still no fresh-email probe.
         _stdin(monkeypatch, "user@example.com\nhunter2secret\n654321\n")
         client = _FakeClient({"accounts": []})
+        calls = []
 
         async def fake_login(email, password, *, email_otp=None, mfa_code=None):
-            if mfa_code is None:
-                raise RequireMFAException("mfa")
+            calls.append((email_otp, mfa_code))
+            if email_otp is not None:
+                raise RequireMFAException("wanted totp")
             assert mfa_code == "654321"
             return client
 
         monkeypatch.setattr(login_password, "login_with_current_auth", fake_login)
         assert await login_password._run() == 0
+        assert calls == [("654321", None), (None, "654321")]
         assert saved == [client]
 
     @pytest.mark.asyncio
