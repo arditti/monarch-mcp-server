@@ -62,11 +62,21 @@ class SecureMonarchSession:
     falling back to a file-based store when no keyring backend is available."""
 
     def __init__(self) -> None:
-        self._use_keyring = _keyring_available()
-        if self._use_keyring:
-            logger.info("🔐 Using system keyring for token storage")
-        else:
-            logger.info("🔐 Keyring unavailable — using file-based token storage")
+        # Keyring availability is probed lazily on first use. Probing in the
+        # constructor triggers keyring access (a macOS Keychain prompt in some
+        # setups) for any import of this package, even when the session store
+        # is never used (e.g. serve mode).
+        self._use_keyring: Optional[bool] = None
+
+    @property
+    def _keyring_ok(self) -> bool:
+        if self._use_keyring is None:
+            self._use_keyring = _keyring_available()
+            if self._use_keyring:
+                logger.info("🔐 Using system keyring for token storage")
+            else:
+                logger.info("🔐 Keyring unavailable — using file-based token storage")
+        return self._use_keyring
 
     # -- file-based helpers --------------------------------------------------
 
@@ -128,7 +138,7 @@ class SecureMonarchSession:
             session_data["cookies"] = dict(cookies)
         blob = json.dumps(session_data)
 
-        if self._use_keyring:
+        if self._keyring_ok:
             try:
                 import keyring
                 keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, blob)
@@ -174,7 +184,7 @@ class SecureMonarchSession:
         everything to ``str(value)`` which corrupted nested dicts).
         """
         raw_session = None
-        if self._use_keyring:
+        if self._keyring_ok:
             try:
                 import keyring
                 raw_session = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
@@ -218,7 +228,7 @@ class SecureMonarchSession:
     def delete_token(self) -> None:
         """Delete the authentication token from all storage backends."""
         # Try keyring
-        if self._use_keyring:
+        if self._keyring_ok:
             try:
                 import keyring
                 keyring.delete_password(KEYRING_SERVICE, KEYRING_USERNAME)

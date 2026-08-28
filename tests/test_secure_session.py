@@ -2,7 +2,7 @@
 
 import sys
 import types
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -168,8 +168,8 @@ def storage_keyring(monkeypatch):
     monkeypatch.setitem(sys.modules, "keyring", module)
 
     session = ss_module.SecureMonarchSession()
-    # __init__ ran the probe and set _use_keyring=True via the fake.
-    assert session._use_keyring is True
+    # Check via _keyring_ok property, which triggers the lazy probe.
+    assert session._keyring_ok is True
     return session, fake
 
 
@@ -334,3 +334,23 @@ class TestGetAuthenticatedClient:
     def test_no_session_returns_none(self, storage_keyring):
         session, _ = storage_keyring
         assert session.get_authenticated_client() is None
+
+
+class TestLazyKeyringProbe:
+    def test_constructor_does_not_probe_keyring(self):
+        from monarch_mcp_server import secure_session as ss
+
+        with patch.object(ss, "_keyring_available") as probe:
+            ss.SecureMonarchSession()
+            probe.assert_not_called()
+
+    def test_first_use_probes_keyring_once(self, tmp_path):
+        from monarch_mcp_server import secure_session as ss
+
+        with patch.object(ss, "_keyring_available", return_value=False) as probe, \
+             patch.object(ss, "_TOKEN_DIR", tmp_path), \
+             patch.object(ss, "_TOKEN_FILE", tmp_path / "token"):
+            session = ss.SecureMonarchSession()
+            session.load_session()
+            session.load_session()
+            assert probe.call_count == 1

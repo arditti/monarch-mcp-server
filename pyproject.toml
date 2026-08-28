@@ -20,7 +20,7 @@ classifiers = [
 ]
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "mcp[cli]>=1.10.0",
+    "mcp[cli]>=1.28,<2",
     "monarchmoneycommunity>=1.4.0",
     "gql>=3.4",
     "keyring>=24.0.0",
@@ -44,7 +44,7 @@ Repository = "https://github.com/robcerda/monarch-mcp-server"
 Issues = "https://github.com/robcerda/monarch-mcp-server/issues"
 
 [project.scripts]
-monarch-mcp-server = "monarch_mcp_server.server:main"
+monarch-mcp-server = "monarch_mcp_server.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

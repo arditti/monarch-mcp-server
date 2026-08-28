@@ -1,0 +1,34 @@
+services:
+  monarch-mcp:
+    build: .
+    restart: unless-stopped
+    # Bind to localhost only; a reverse proxy or tunnel provides TLS.
+    # NEVER publish 8000 directly to the internet.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Generate with: openssl rand -base64 33
+      # Prefer MONARCH_MCP_AUTH_TOKEN_FILE with a mounted secret in
+      # production; env vars are visible via `docker inspect`.
+      MONARCH_MCP_AUTH_TOKEN: ${MONARCH_MCP_AUTH_TOKEN:?set in .env}
+      # Uncomment behind a proxy so Host-header checks are enforced:
+      # MONARCH_MCP_ALLOWED_HOSTS: monarch.example.com
+      # MONARCH_MCP_PUBLIC_URL: https://monarch.example.com
+    volumes:
+      - monarch-data:/data
+
+  # Optional: Cloudflare Tunnel. Create a tunnel + token in the Zero Trust
+  # dashboard, point its public hostname at http://monarch-mcp:8000, then:
+  #   docker compose --profile tunnel up -d
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set in .env}
+    depends_on:
+      - monarch-mcp
+
+volumes:
+  monarch-data:
