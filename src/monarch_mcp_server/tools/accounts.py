@@ -25,13 +25,20 @@ class BalanceCorrections(RootModel[Dict[date, Decimal]]):
 
 @mcp.tool()
 async def get_accounts() -> str:
-    """Get all financial accounts from Monarch Money."""
+    """Get all financial accounts from Monarch Money.
+
+    Each account includes last-refresh and connection-health info, mirroring
+    what Monarch's own UI shows on an account card: when the account was last
+    synced (``last_refreshed``) and whether its bank connection is broken and
+    needs reconnecting (``needs_attention``).
+    """
     try:
         client = await get_monarch_client()
         accounts = await client.get_accounts()
 
         account_list = []
         for account in accounts.get("accounts", []):
+            credential = account.get("credential") or {}
             account_info = {
                 "id": account.get("id"),
                 "name": account.get("displayName") or account.get("name"),
@@ -44,6 +51,13 @@ async def get_accounts() -> str:
                 if "isActive" in account
                 else not account.get("deactivatedAt"),
                 "is_hidden": account.get("isHidden", False),
+                "last_refreshed": account.get("displayLastUpdatedAt"),
+                "sync_disabled": account.get("syncDisabled", False),
+                "needs_attention": bool(
+                    credential.get("updateRequired")
+                    or credential.get("disconnectedFromDataProviderAt")
+                ),
+                "disconnected_at": credential.get("disconnectedFromDataProviderAt"),
             }
             account_list.append(account_info)
 
